@@ -10,7 +10,7 @@
 
 #include "include/ProgressBar.h"
 
-#include "include/pythiaEvent.hh"
+#include "include/vinciaEvent.hh"
 #include "include/extraInfo.hh"
 
 #include "PU14/CmdLine.hh"
@@ -36,25 +36,25 @@ int main (int argc, char ** argv)
 
   std::cout << "generating " << nEvent << " events with pthat = " << ptHat << " and tune = " << tune << std::endl;  
 
-  pythiaEvent pyt(ptHat, tune, -3.0, 3.0);
+  vinciaEvent gen(ptHat, tune, -3.0, 3.0);
 
-  ProgressBar Bar(cout, nEvent);
-  Bar.SetStyle(-1);
+  // ProgressBar Bar(cout, nEvent);
+  // Bar.SetStyle(-1);
 
   //output text file
   ofstream fout;
   const char *dir = getenv("PWD");//"/eos/user/m/mverweij/JetWorkshop2017/samples/";
-  TString outFileName = Form("%s/PythiaEventsTune%dPtHat%.0f.pu14",dir,tune,ptHat);
+  TString outFileName = Form("%s/VinciaEventsTune%dPtHat%.0f.pu14",dir,tune,ptHat);
   
   fout.open(outFileName.Data());
   
   unsigned int entryDiv = (nEvent > 200) ? nEvent / 200 : 1;
   for(unsigned int ie = 0; ie < nEvent; ie++) {
-    Bar.Update(ie);
-    Bar.PrintWithMod(entryDiv);
+    // Bar.Update(ie);
+    // Bar.PrintWithMod(entryDiv);
 
-    Bar.Update(ie);
-    Bar.PrintWithMod(entryDiv);
+    // Bar.Update(ie);
+    // Bar.PrintWithMod(entryDiv);
     
     //---------------------------------------------------------------------------
     //   produce event
@@ -62,16 +62,18 @@ int main (int argc, char ** argv)
 
     fout << "# event " << ie << "\n";
 
-    //create pythia event
-    std::vector<fastjet::PseudoJet> particlesSig = pyt.createPythiaEvent();
+    //create vincia event
+    std::vector<fastjet::PseudoJet> particlesSig = gen.createVinciaEvent();
 
-    std::vector<fastjet::PseudoJet> partons = pyt.getPartonList();
+    std::vector<fastjet::PseudoJet> partons = gen.getPartonList();
     for(fastjet::PseudoJet p : partons) {
       const int & pdgid = p.user_info<extraInfo>().pdg_id();
       const int & vtx   = p.user_info<extraInfo>().vertex_number();
       fout << p.px() << " " << p.py() << " " << p.pz() << " " << p.m() << " " << pdgid << " " << vtx << "\n";
+      //fout << p.pt() << " " << p.rap() << " " << p.phi() << " " << p.m() << " " << pdgid << " " << vtx << "\n"; 
     }
-   
+
+    
     for(fastjet::PseudoJet p : particlesSig) {
       const int & pdgid = p.user_info<extraInfo>().pdg_id();
       const int & vtx   = p.user_info<extraInfo>().vertex_number();
