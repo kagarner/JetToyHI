@@ -15,6 +15,7 @@
 #include "TF1.h"
 #include "TMath.h"
 #include "TH2.h"
+#include "../PU14/PU14.hh"
 
 #include "fastjet/PseudoJet.hh"
 #include "jetCollection.hh"
@@ -36,6 +37,7 @@ public:
   jetProfile(std::vector<fastjet::PseudoJet> v, double eventWeight = 1.);
 
   TH2F* calculateProfileHisto();
+  void calculateProfileHisto(TH2F *&h2PtJetRho, double min_pPt=1, double min_delR_=0.5, bool kDoWeighting=kTRUE);
   void  calculateProfile();
 
   void setBoundariesMin(std::vector<double> v) { min_delR_ = v; }
@@ -80,6 +82,25 @@ TH2F* jetProfile::calculateProfileHisto()
     }
   }
   return h2PtJetRho;
+}
+
+void jetProfile::calculateProfileHisto(TH2F *&h2PtJetRho, double min_pPt, double max_delR, bool kDoWeighting)
+{
+  if(h2PtJetRho==NULL) throw invalid_argument("ERROR in jetProfile:: histogram h2PtJetRho is nullpointer.\n");
+
+  for(fastjet::PseudoJet& jet : jets_) {
+    std::vector<fastjet::PseudoJet> const_all = jet.constituents();
+
+    for(fastjet::PseudoJet& p : const_all) {
+      double pPt  = p.perp();
+      double delR   = p.delta_R(jet);
+
+      if(pPt > min_pPt&& delR<max_delR) {
+        if(kDoWeighting){h2PtJetRho->Fill(jet.perp(),delR,eventWeight_*(pPt/jet.perp()));}
+        else{h2PtJetRho->Fill(jet.perp(),delR);}
+      }
+    }
+  }
 }
 
 void jetProfile::calculateProfile()

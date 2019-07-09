@@ -40,7 +40,9 @@ private :
   std::vector<std::vector<double>> erads_;       // energy of sum of the two branches at each node
   std::vector<std::vector<double>> log1drs_;     // Log(1/angle) in the algorithm
   std::vector<std::vector<double>> logzdrs_;     // Log(z*angle) in the algorithm
-  
+  std::vector<std::vector<double>> logkt_;       // Log(p*angle) in the algorithm
+  std::vector<std::vector<double>> tf_;          // tf=2*omega/kt^2 (in fm)
+
 public :
   softDropCounter(double z = 0.1, double beta = 0.0, double r0 = 0.4, double rcut = 0.1);
   void setZCut(double c);
@@ -60,7 +62,9 @@ public :
   std::vector<std::vector<double>> getErads() const { return erads_; }
   std::vector<std::vector<double>> getLog1DRs() const { return log1drs_; }
   std::vector<std::vector<double>> getLogzDRs() const { return logzdrs_; }
-  
+  std::vector<std::vector<double>> getLogkt() const { return logkt_; }
+  std::vector<std::vector<double>> getTf() const { return tf_; }
+
   void run(const jetCollection &c);
   void run(const std::vector<fastjet::PseudoJet> &v);
   void run();
@@ -138,12 +142,14 @@ void softDropCounter::run()
          erads_.push_back(vector<double>());
          log1drs_.push_back(vector<double>());
          logzdrs_.push_back(vector<double>());
+         logkt_.push_back(vector<double>());
+         tf_.push_back(vector<double>());
          continue;
       }
 
       std::vector<fastjet::PseudoJet> particles, ghosts;
-      fastjet::SelectorIsPureGhost().sift(jet.constituents(), ghosts, particles);
 
+      fastjet::SelectorIsPureGhost().sift(jet.constituents(), ghosts, particles);
       //need flexibility here on how we order the tree before declustering
       fastjet::JetAlgorithm jetalgo(fastjet::genkt_algorithm);
       float kpval=0;
@@ -176,6 +182,8 @@ void softDropCounter::run()
          erads_.push_back(vector<double>());
          log1drs_.push_back(vector<double>());
          logzdrs_.push_back(vector<double>());
+         logkt_.push_back(vector<double>());
+         tf_.push_back(vector<double>());
          continue;
       }
 
@@ -188,7 +196,9 @@ void softDropCounter::run()
       std::vector<double> erad;
       std::vector<double> log1dr;
       std::vector<double> logzdr;
-      
+      std::vector<double> logkt;
+      std::vector<double> tf;
+
       while(CurrentJet.has_parents(Part1, Part2))
       {
          if(CurrentJet.pt2() <= 0)
@@ -203,7 +213,7 @@ void softDropCounter::run()
            sj1 = Part1;
            sj2 = Part2;
          }
-      
+
          double DeltaR = std::sqrt(sj1.squared_distance(sj2));
          if(DeltaR < rcut_)
             break;
@@ -227,6 +237,9 @@ void softDropCounter::run()
             erad.push_back(sj1.e()+sj2.e());
             log1dr.push_back(log(1./DeltaR));
             logzdr.push_back(log(zg*DeltaR));
+            logkt.push_back(log(PT2*DeltaR));
+            double omega=zg*(sj1.e()+sj2.e());
+            tf.push_back(2*omega*0.197327053/((sj2.perp()*DeltaR)*(sj2.perp()*DeltaR)));  //multiplication with hbar c to get right units
          }
 
          if(PT1 > PT2)
@@ -241,6 +254,8 @@ void softDropCounter::run()
       erads_.push_back(erad);
       log1drs_.push_back(log1dr);
       logzdrs_.push_back(logzdr);
+      logkt_.push_back(logkt);
+      tf_.push_back(tf);
    }
 }
 
