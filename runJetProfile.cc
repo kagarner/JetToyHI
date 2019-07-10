@@ -34,7 +34,7 @@ using namespace fastjet;
 int main (int argc, char ** argv) {
 
   auto start_time = std::chrono::steady_clock::now();
-  
+
   CmdLine cmdline(argc,argv);
   // inputs read from command line
   int nEvent = cmdline.value<int>("-nev",1);  // first argument: command line option; second argument: default value
@@ -48,6 +48,10 @@ int main (int argc, char ** argv) {
   //to write info to root tree
   treeWriter trwSig("jetTreeSig");
   treeWriter trwEmb("jetTreeEmb");
+
+  //
+  TH2F* hJetPtSig=new TH2F("h2PtJetSig","",150,0,150,20,0,0.5);
+  TH2F* hJetPtCS=new TH2F("h2PtJetCS","",150,0,150,20,0,0.5);
 
   //Jet definition
   double R                   = 0.4;
@@ -71,7 +75,7 @@ int main (int argc, char ** argv) {
   unsigned int entryDiv = (nEvent > 200) ? nEvent / 200 : 1;
   while ( mixer.next_event() && iev < nEvent )
   {
-    // increment event number    
+    // increment event number
     iev++;
 
     Bar.Update(iev);
@@ -86,23 +90,22 @@ int main (int argc, char ** argv) {
     // cluster hard event only
     std::vector<fastjet::PseudoJet> particlesBkg, particlesSig;
     SelectorIsHard().sift(particlesMerged, particlesSig, particlesBkg); // this sifts the full event into two vectors of PseudoJet, one for the hard event, one for the underlying event
-    
+
     //---------------------------------------------------------------------------
     //   jet clustering
     //---------------------------------------------------------------------------
-    
+
     // run the clustering, extract the signal jets
     fastjet::ClusterSequenceArea csSig(particlesSig, jet_def, area_def);
     jetCollection jetCollectionSig(sorted_by_pt(jet_selector(csSig.inclusive_jets(10.))));
-
     //---------------------------------------------------------------------------
     //   background subtraction
     //---------------------------------------------------------------------------
-    
+
     //run jet-by-jet constituent subtraction on mixed (hard+UE) event
     std::vector<jetCollection> jetCollectionCSs;
     std::vector<double> rho;
-    std::vector<double> rhom; 
+    std::vector<double> rhom;
     csSubtractor csSub(R, 1., -1, 0.005,ghostRapMax,jetRapMax);
     csSub.setInputParticles(particlesMerged);
     jetCollection jetCollectionCS(csSub.doSubtraction());
@@ -132,12 +135,13 @@ int main (int argc, char ** argv) {
     //---------------------------------------------------------------------------
     //   Soft Drop for the signal jets
     //---------------------------------------------------------------------------
-    
+
     //Using soft drop grooming class without actually doing grooming, kT ordering
     softDropGroomer sdgSig(0.0, 0.0, R);
     sdgSig.setReclusteringAlgo(2);//0 = CA 1 = AKT 2 = KT
- 
+
     std::vector<fastjet::PseudoJet> groomedJets_Sig = sdgSig.doGrooming(jetCollectionSig);
+
     jetCollection jetCollectionSigSD(groomedJets_Sig);
     jetCollectionSigSD.addVector("sigJetSDzg",    sdgSig.getZgs());
     jetCollectionSigSD.addVector("sigJetSDndrop", sdgSig.getNDroppedSubjets());
@@ -150,7 +154,7 @@ int main (int argc, char ** argv) {
     //Using soft drop grooming class with classical grooming (zcut=0.1, beta=0.0), CA ordering
     softDropGroomer sdgSigZ01B00(0.1, 0.0, R);
     sdgSigZ01B00.setReclusteringAlgo(0);//0 = CA 1 = AKT 2 = KT
- 
+
     std::vector<fastjet::PseudoJet> groomedJets_SigZ01B00 = sdgSigZ01B00.doGrooming(jetCollectionSig);
     jetCollection jetCollectionSigSDZ01B00(groomedJets_SigZ01B00);
     jetCollectionSigSDZ01B00.addVector("sigJetSDZ01B00zg",    sdgSigZ01B00.getZgs());
@@ -164,7 +168,9 @@ int main (int argc, char ** argv) {
     //---------------------------------------------------------------------------
     //   Recursive Soft Drop for signal jets
     //---------------------------------------------------------------------------
-    
+    jetProfile jetProfSig(jetCollectionSig, 1.);
+    jetProfSig.calculateProfileHisto(hJetPtSig,0.,1000,kFALSE);
+
     softDropCounter sdcSig(0.0,0.0,R,0.0);
     sdcSig.setRecursiveAlgo(2);//0 = CA 1 = AKT 2 = KT
     sdcSig.run(jetCollectionSig);
@@ -175,25 +181,41 @@ int main (int argc, char ** argv) {
     jetCollectionSigSD.addVector("sigJetRecur_erad",      sdcSig.getErads());
     jetCollectionSigSD.addVector("sigJetRecur_logdr12",   sdcSig.getLog1DRs());
     jetCollectionSigSD.addVector("sigJetRecur_logztheta", sdcSig.getLogzDRs());
-
+    jetCollectionSigSD.addVector("sigJetRecur_logkt", sdcSig.getLogkt());
+    jetCollectionSigSD.addVector("sigJetRecur_tf",sdcSig.getTf());
 
     //---------------------------------------------------------------------------
     //   Calculate jet radial profile for embedded jets
     //---------------------------------------------------------------------------
     jetProfile jetProfCS(jetCollectionCS, 1.);
+    jetProfCS.calculateProfileHisto(hJetPtCS,0.,1000,kFALSE);
     jetProfCS.setBoundariesMin(vmin);
     jetProfCS.setBoundariesMax(vmax);
     jetProfCS.calculateProfile();
     jetCollectionCS.addVector(Form("csJetProfile"), jetProfCS.getJetProfiles());
 
+    //softDropCounter sdcCS(0.0,0.0,R,0.0);
+    //sdcCS.setRecursiveAlgo(2);//0 = CA 1 = AKT 2 = KT
+    //sdcCS.run(jetCollectionCS);
+
+    //jetCollectionCS.addVector("csJetRecur_jetpt",     sdcCS.getPts());
+    //jetCollectionCS.addVector("csJetRecur_z",         sdcCS.getZgs());
+    //jetCollectionCS.addVector("csJetRecur_dr12",      sdcCS.getDRs());
+    //jetCollectionCS.addVector("csJetRecur_erad",      sdcCS.getErads());
+    //jetCollectionCS.addVector("csJetRecur_logdr12",   sdcCS.getLog1DRs());
+    //jetCollectionCS.addVector("csJetRecur_logztheta", sdcCS.getLogzDRs());
+    //jetCollectionCS.addVector("csJetRecur_logkt", sdcCS.getLogkt());
+    //jetCollectionCS.addVector("csJetRecur_tf",sdcCS.getTf());
+
+
     //---------------------------------------------------------------------------
     //   Soft Drop for the embedded CS jets
     //---------------------------------------------------------------------------
-    
+
     //Using soft drop grooming class without actually doing grooming
     softDropGroomer sdgCS(0.0, 0.0, R);
     sdgCS.setReclusteringAlgo(2);//0 = CA 1 = AKT 2 = KT
- 
+
     std::vector<fastjet::PseudoJet> groomedJets_CS = sdgCS.doGrooming(jetCollectionCS);
     jetCollection jetCollectionCSSD(groomedJets_CS);
     jetCollectionCSSD.addVector("csJetSDzg",    sdgCS.getZgs());
@@ -222,7 +244,6 @@ int main (int argc, char ** argv) {
     //---------------------------------------------------------------------------
     //   Recursive Soft Drop for embedded CS jets
     //---------------------------------------------------------------------------
-    
     softDropCounter sdcCS(0.0,0.0,R,0.0);
     sdcCS.setRecursiveAlgo(2);//0 = CA 1 = AKT 2 = KT
     sdcCS.run(jetCollectionCS);
@@ -233,8 +254,7 @@ int main (int argc, char ** argv) {
     jetCollectionCSSD.addVector("csJetRecur_erad",      sdcCS.getErads());
     jetCollectionCSSD.addVector("csJetRecur_logdr12",   sdcCS.getLog1DRs());
     jetCollectionCSSD.addVector("csJetRecur_logztheta", sdcCS.getLogzDRs());
-  
-        
+
     /* Question from MV: do uoi want matching between embedded and signal jets here?
     //match the CS jets to signal jets
     for(int ics = 0; ics<ncs; ++ics) {
@@ -242,7 +262,6 @@ int main (int argc, char ** argv) {
       jmCS.setBaseJets(jetCollectionCSs[ics]);
       jmCS.setTagJets(jetCollectionSig);
       jmCS.matchJets();
-
       jmCS.reorderedToTag(jetCollectionCSs[ics]);
       jmCS.reorderedToTag(jetCollectionCSSDs[ics]);
     }
@@ -251,7 +270,7 @@ int main (int argc, char ** argv) {
     //---------------------------------------------------------------------------
     //   write tree
     //---------------------------------------------------------------------------
-    
+
     //Give variable we want to write out to treeWriter.
     //Only vectors of the types 'jetCollection', and 'double', 'int', 'fastjet::PseudoJet' are supported
 
@@ -266,11 +285,13 @@ int main (int argc, char ** argv) {
     trwEmb.addCollection("csJet",         jetCollectionCS);
     trwEmb.addCollection("csJetSD",       jetCollectionCSSD);
     trwEmb.addCollection("csJetSDZ01B00", jetCollectionCSSDZ01B00);
-        
+
 
     trwSig.fillTree();  //signal jets
     trwEmb.fillTree();  //embedded jets
   }//event loop
+
+
 
   Bar.Update(nEvent);
   Bar.Print();
@@ -279,6 +300,8 @@ int main (int argc, char ** argv) {
   TFile *fout = new TFile("JetToyHIResultJetProfile.root","RECREATE");
   trwSig.getTree()->Write();
   trwEmb.getTree()->Write();
+  hJetPtSig->Write();
+  hJetPtCS->Write();
 
   fout->Write();
   fout->Close();
