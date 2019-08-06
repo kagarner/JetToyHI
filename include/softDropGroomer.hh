@@ -11,8 +11,12 @@
 #include "../PU14/PU14.hh"
 #include "fastjet/PseudoJet.hh"
 #include "fastjet/ClusterSequenceArea.hh"
+#if FASTJET_VERSION_NUMBER >= 30302
+#include <fastjet/tools/Recluster.hh>
+#else
+#include <fastjet/contrib/Recluster.hh>
+#endif
 #include "fastjet/contrib/SoftDrop.hh"
-#include "fastjet/contrib/Recluster.hh"
 
 #include "TMath.h"
 #include "TH2.h"
@@ -36,9 +40,11 @@ private :
   Float_t fqhat;                        //qhat
   Float_t fxlength;                     //medium length
   double eventWeight;
+  int fCsSize;
 
   std::vector<fastjet::PseudoJet> fjInputs_;   //ungroomed jets
   std::vector<fastjet::PseudoJet> fjOutputs_;  //groomed jets
+  fastjet::ClusterSequence** fCs;
   std::vector<double>             zg_;         //zg of groomed jets
   std::vector<int>                drBranches_; //dropped branches
   std::vector<double>             dr12_;       //distance between the two subjets
@@ -57,6 +63,7 @@ private :
 
 public :
   softDropGroomer(double zcut = 0.1, double beta = 0., double r0 = 0.4);
+  ~softDropGroomer();
   void setZcut(double c);
   void setBeta(double b);
   void setR0(double r);
@@ -64,6 +71,9 @@ public :
   void setReclusteringAlgo(int r);
   void setMediumParameters(Float_t t, Float_t c);
   void setEventWeight(double e);
+
+  int getCsSize(){return fCsSize;}
+  void increaseClusterSize(){ fCsSize++;}
 
   std::vector<fastjet::PseudoJet> getGroomedJets() const;
   std::vector<double> getZgs() const;
@@ -95,8 +105,15 @@ public :
 };
 
 softDropGroomer::softDropGroomer(double zcut, double beta, double r0)
-   : zcut_(zcut), beta_(beta), r0_(r0)
+   : zcut_(zcut), beta_(beta), r0_(r0), fCsSize(0)
 {
+}
+
+softDropGroomer::~softDropGroomer(){
+      for(int iCs=0;iCs<(this->getCsSize());iCs++){
+        delete fCs[iCs];
+      }
+      delete [] fCs;
 }
 
 void softDropGroomer::setZcut(double c)
@@ -229,15 +246,19 @@ std::vector<fastjet::PseudoJet> softDropGroomer::doGrooming()
    constituents_.reserve(fjInputs_.size());
    constituents1_.reserve(fjInputs_.size());
    constituents2_.reserve(fjInputs_.size());
-   
+
+   fCs =new fastjet::ClusterSequence*[fjInputs_.size()];
+
+   int ijet=0;
    for(fastjet::PseudoJet& jet : fjInputs_) {
       std::vector<fastjet::PseudoJet> particles, ghosts;
       fastjet::SelectorIsPureGhost().sift(jet.constituents(), ghosts, particles);
 
       fastjet::JetDefinition jet_def(fastjet::cambridge_algorithm,fastjet::JetDefinition::max_allowable_R);
-      fastjet::ClusterSequence cs(particles, jet_def);
+      fCs[ijet]=new fastjet::ClusterSequence(particles, jet_def);
+      this->increaseClusterSize();
 
-      std::vector<fastjet::PseudoJet> tempJets = fastjet::sorted_by_pt(cs.inclusive_jets());
+      std::vector<fastjet::PseudoJet> tempJets = fastjet::sorted_by_pt(fCs[ijet]->inclusive_jets());
       if(tempJets.size()<1) {
          fjOutputs_.push_back(fastjet::PseudoJet(0.,0.,0.,0.));
          zg_.push_back(-1.);
@@ -330,9 +351,9 @@ std::vector<fastjet::PseudoJet> softDropGroomer::doGrooming()
       }
 
       fjOutputs_.push_back( transformedJet ); //put CA reclustered jet after softDrop into vector
-
       if(sd) { delete sd; sd = 0;}
       //   if(reclusterer) { delete reclusterer; sd = 0;}
+      ijet++;
    }
    return fjOutputs_;
 }

@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <fstream>
 
+
 #include "fastjet/PseudoJet.hh"
 #include "fastjet/ClusterSequenceArea.hh"
 
@@ -14,8 +15,11 @@
 
 #include "../PU14/PU14.hh"
 
+
+
 using namespace std;
 using namespace fastjet;
+
 
 //---------------------------------------------------------------
 // Description
@@ -34,8 +38,11 @@ class csSubtractor {
       double jetRapMax_;
       double rho_;
       double rhom_;
+      int fCsSize;
+
       std::vector<fastjet::PseudoJet> fjInputs_;
       std::vector<fastjet::PseudoJet> fjJetInputs_;
+      fastjet::ClusterSequenceArea** fCs;
       std::vector<std::vector<fastjet::PseudoJet>> Hard;
       std::vector<std::vector<fastjet::PseudoJet>> Soft;
 
@@ -49,7 +56,8 @@ class csSubtractor {
          rParam_(rParam),
          ghostArea_(ghostArea),
          ghostRapMax_(ghostRapMax),
-         jetRapMax_(jetRapMax)
+         jetRapMax_(jetRapMax),
+         fCsSize(0)
    {
       //init constituent subtractor
       subtractor_.set_distance_type(contrib::ConstituentSubtractor::deltaR);
@@ -58,6 +66,7 @@ class csSubtractor {
       subtractor_.set_do_mass_subtraction(true);
 
    }
+      ~csSubtractor();
 
       void setAlpha(double a) { alpha_ = a; }
       void setRParam(double r) { rParam_ = r; }
@@ -68,10 +77,23 @@ class csSubtractor {
 
       double getRho()  const { return rho_; }
       double getRhoM() const { return rhom_; }
+      int getCsSize(){return fCsSize;}
+      void increaseClusterSize(){ fCsSize++;}
       std::vector<std::vector<fastjet::PseudoJet>> getHard() const { return Hard; }
       std::vector<std::vector<fastjet::PseudoJet>> getSoft() const { return Soft; }
 
-      std::vector<fastjet::PseudoJet> doSubtraction() {
+      std::vector<fastjet::PseudoJet> doSubtraction();
+};
+
+csSubtractor::~csSubtractor(){
+    for(int iCs=0;iCs<(this->getCsSize());iCs++){
+      delete fCs[iCs];
+    }
+    delete [] fCs;
+}
+
+
+std::vector<fastjet::PseudoJet> csSubtractor::doSubtraction() {
 
          Hard.clear();
          Soft.clear();
@@ -90,8 +112,8 @@ class csSubtractor {
          //----------------------------------------------------------
          fastjet::JetDefinition jet_def(antikt_algorithm, jetRParam_);
          fastjet::AreaDefinition area_def = fastjet::AreaDefinition(fastjet::active_area_explicit_ghosts,ghost_spec);
-
          fastjet::ClusterSequenceArea cs(fjInputs_, jet_def, area_def);
+
          fastjet::Selector jet_selector = SelectorAbsRapMax(jetRapMax_);
          jets = fastjet::sorted_by_pt(jet_selector(cs.inclusive_jets()));
          //}
@@ -112,9 +134,17 @@ class csSubtractor {
 
          subtractor_.set_background_estimator(&bkgd_estimator);
          subtractor_.set_common_bge_for_rho_and_rhom(true);
+         subtractor_.set_remove_all_zero_pt_particles(true);
 
          std::vector<fastjet::PseudoJet> csjets;
          csjets.reserve(jets.size());
+
+         fastjet::JetDefinition jet_defSub(antikt_algorithm, 20.);
+         fastjet::GhostedAreaSpec ghost_spec_sub(ghostRapMax_, 1, 1.);
+         fastjet::AreaDefinition area_def_sub = fastjet::AreaDefinition(fastjet::active_area_explicit_ghosts,ghost_spec_sub);
+
+         fCs =new fastjet::ClusterSequenceArea*[fjInputs_.size()];
+         int ijet=0;
          for(fastjet::PseudoJet& jet : jets) {
 
             fastjet::PseudoJet subtracted_jet = subtractor_(jet);
@@ -146,23 +176,31 @@ class csSubtractor {
                   soft.push_back(p);
             }
 
+            fCs[ijet]=new fastjet::ClusterSequenceArea(particles, jet_defSub, area_def_sub);
+            this->increaseClusterSize();
             if(particles.size() > 0)
             {
-               std::vector<fastjet::PseudoJet> combinedparticles;
+               std::vector<fastjet::PseudoJet> jetSub = fastjet::sorted_by_pt(fCs[ijet]->inclusive_jets());
+               if(jetSub[0].pt()>0.) csjets.push_back(jetSub[0]);
+               //if(csjets.size()>0 && csjets.size()<2) fCs->delete_self_when_unused();
+
+               /*std::vector<fastjet::PseudoJet> combinedparticles;
                for(fastjet::PseudoJet p : particles)
                   combinedparticles.push_back(fastjet::PseudoJet(p.px(), p.py(), p.pz(), p.E()));
-               for(fastjet::PseudoJet p : jet.constituents())
-                  if(p.E() < 1e-5)
-                     combinedparticles.push_back(fastjet::PseudoJet(p.px(), p.py(), p.pz(), p.E()));
+                for(fastjet::PseudoJet p : jet.constituents())
+                    if(p.E() < 1e-5)
+                    combinedparticles.push_back(fastjet::PseudoJet(p.px(), p.py(), p.pz(), p.E()));
          
                csjets.push_back(fastjet::PseudoJet(join(combinedparticles)));
+               //printf("transformedJet, fjOutputs size=%lu, nconstituents %lu\n", csjets.size(),csjets.back().constituents().size());
                Hard.push_back(hard);
-               Soft.push_back(soft);
+               Soft.push_back(soft);*/
             }
+            ijet++;
          }
 
          return csjets;
       }
-};
+
 
 #endif

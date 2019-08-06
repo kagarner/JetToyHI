@@ -240,6 +240,7 @@ void softDropCounter::run()
             logkt.push_back(log(PT2*DeltaR));
             double omega=zg*(sj1.e()+sj2.e());
             tf.push_back(2*omega*0.197327053/((sj2.perp()*DeltaR)*(sj2.perp()*DeltaR)));  //multiplication with hbar c to get right units
+            //printf("z=%f, dr=%f, erad=%f, log1dr?%f, logtf=%f, logkt=%f, omega=%f, sj2perp=%f=\n",zg, DeltaR, erad.back(), log1dr.back(),tf.back(), logkt.back(), omega, sj2.perp());
          }
 
          if(PT1 > PT2)
