@@ -43,8 +43,11 @@ private :
   std::vector<std::vector<double>> logkt_;       // Log(p*angle) in the algorithm
   std::vector<std::vector<double>> tf_;          // tf=2*omega/kt^2 (in fm)
 
+  TH2D* h2DProfileHisto;
+
 public :
   softDropCounter(double z = 0.1, double beta = 0.0, double r0 = 0.4, double rcut = 0.1);
+  ~softDropCounter();
   void setZCut(double c);
   void setBeta(double b);
   void setR0(double r) ;
@@ -65,6 +68,9 @@ public :
   std::vector<std::vector<double>> getLogkt() const { return logkt_; }
   std::vector<std::vector<double>> getTf() const { return tf_; }
 
+  TH2D* getProfileHist(){return h2DProfileHisto;}
+  void delProfileHist(){delete h2DProfileHisto; h2DProfileHisto=NULL;}
+
   void run(const jetCollection &c);
   void run(const std::vector<fastjet::PseudoJet> &v);
   void run();
@@ -76,6 +82,11 @@ softDropCounter::softDropCounter(double z, double beta, double r0, double rcut)
 {
   fRecursiveAlgo_ = 0;
   doJewelSub_     = false;
+  h2DProfileHisto = new TH2D("h2DProfileHisto","h2DProfileHisto",500,0,500,20,0,0.5);
+}
+
+softDropCounter::~softDropCounter(){
+  if(h2DProfileHisto!=NULL)delete h2DProfileHisto;
 }
 
 void softDropCounter::setZCut(double c)
@@ -134,6 +145,7 @@ void softDropCounter::run()
 {
   for(fastjet::PseudoJet &jet: fjInputs_)
    {
+      //printf("New Jet *******************************\n");
       if(jet.has_constituents() == false)
       {
          zgs_.push_back(vector<double>());
@@ -199,6 +211,8 @@ void softDropCounter::run()
       std::vector<double> logkt;
       std::vector<double> tf;
 
+
+      int iSplit=0;
       while(CurrentJet.has_parents(Part1, Part2))
       {
          if(CurrentJet.pt2() <= 0)
@@ -231,6 +245,9 @@ void softDropCounter::run()
 
          if(zg >= Threshold)   // yay
          {
+            if(iSplit==0){
+                h2DProfileHisto->Fill(jet.pt(),DeltaR);
+            }
             z.push_back(zg);
             dr.push_back(DeltaR);
             pt.push_back(CurrentJet.perp());
@@ -241,6 +258,7 @@ void softDropCounter::run()
             double omega=zg*(sj1.e()+sj2.e());
             tf.push_back(2*omega*0.197327053/((sj2.perp()*DeltaR)*(sj2.perp()*DeltaR)));  //multiplication with hbar c to get right units
             //printf("z=%f, dr=%f, erad=%f, log1dr?%f, logtf=%f, logkt=%f, omega=%f, sj2perp=%f=\n",zg, DeltaR, erad.back(), log1dr.back(),tf.back(), logkt.back(), omega, sj2.perp());
+            iSplit++;
          }
 
          if(PT1 > PT2)

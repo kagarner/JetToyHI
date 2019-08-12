@@ -51,10 +51,9 @@ int main (int argc, char ** argv) {
   treeWriter trwEmb("jetTreeEmb");
 
   //
-  TH2F* hJetPtSig=new TH2F("h2PtJetSig","",150,0,150,20,0,0.5);
-  TH2F* hJetPtCS=new TH2F("h2PtJetCS","",150,0,150,20,0,0.5);
-  TH2F* hJetPtCSSD=new TH2F("h2PtJetCSSD","",150,0,150,20,0,0.5);
-
+  TH2F* hJetPtSig=new TH2F("h2PtJetSig","",500,0,500,20,0,0.5);
+  TH2F* hJetPtCS=new TH2F("h2PtJetCS","",500,0,500,20,0,0.5);
+  TH2F* hJetPtCSSD=new TH2F("h2PtJetCSSD","",500,0,500,20,0,0.5);
 
   //Jet definition
   double R                   = 0.4;
@@ -172,8 +171,10 @@ int main (int argc, char ** argv) {
     //---------------------------------------------------------------------------
     //   Recursive for signal jets
     //---------------------------------------------------------------------------
-    jetProfile jetProfSig(jetCollectionSig, 1.);
-    jetProfSig.calculateProfileHisto(hJetPtSig,0.,1000,kFALSE);
+    //jetProfile jetProfSig(jetCollectionSig, 1.);
+    //jetProfSig.calculateProfileHisto(hJetPtSig,0.,1000,kFALSE);
+
+
 
     softDropCounter sSig(0.0,0.0,R,0.0);
     sSig.setRecursiveAlgo(0);//0 = CA 1 = AKT 2 = KT
@@ -188,11 +189,13 @@ int main (int argc, char ** argv) {
     jetCollectionSig.addVector("sigJetRecur_logkt", sSig.getLogkt());
     jetCollectionSig.addVector("sigJetRecur_tf",sSig.getTf());
 
+    hJetPtSig->Add(sSig.getProfileHist());
+    sSig.delProfileHist();
     //---------------------------------------------------------------------------
     //   Calculate jet radial profile for embedded jets
     //---------------------------------------------------------------------------
     jetProfile jetProfCS(jetCollectionCS, 1.);
-    jetProfCS.calculateProfileHisto(hJetPtCS,0.,1000,kFALSE);
+    //jetProfCS.calculateProfileHisto(hJetPtCS,0.,1000,kFALSE);
     jetProfCS.setBoundariesMin(vmin);
     jetProfCS.setBoundariesMax(vmax);
     jetProfCS.calculateProfile();
@@ -211,6 +214,8 @@ int main (int argc, char ** argv) {
     jetCollectionCS.addVector("csJetRecur_logkt", sdcCS.getLogkt());
     jetCollectionCS.addVector("csJetRecur_tf",sdcCS.getTf());
 
+    hJetPtCS->Add(sdcCS.getProfileHist());
+    sdcCS.delProfileHist();
     //---------------------------------------------------------------------------
     //   Soft Drop for the embedded CS jets
     //---------------------------------------------------------------------------
@@ -248,7 +253,7 @@ int main (int argc, char ** argv) {
     //   Recursive Soft Drop for embedded CS jets
     //---------------------------------------------------------------------------
     jetProfile jetProfSigCSSD(jetCollectionCSSDZ01B00, 1.);
-    jetProfSigCSSD.calculateProfileHisto(hJetPtCSSD,0.,1000,kFALSE);
+    //jetProfSigCSSD.calculateProfileHisto(hJetPtCSSD,0.,1000,kFALSE);
 
     softDropCounter sdcCSSD(0.0,0.0,R,0.0);
     sdcCSSD.setRecursiveAlgo(0);//0 = CA 1 = AKT 2 = KT
@@ -262,6 +267,9 @@ int main (int argc, char ** argv) {
     jetCollectionCSSD.addVector("cssdJetRecur_logztheta", sdcCSSD.getLogzDRs());
     jetCollectionCSSD.addVector("cssdJetRecur_logkt", sdcCSSD.getLogkt());
     jetCollectionCSSD.addVector("cssdJetRecur_tf",sdcCSSD.getTf());
+
+    hJetPtCSSD->Add(sdcCSSD.getProfileHist());
+    sdcCSSD.delProfileHist();
 
     /* Question from MV: do uoi want matching between embedded and signal jets here?
     //match the CS jets to signal jets
